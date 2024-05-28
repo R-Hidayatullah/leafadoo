@@ -18,11 +18,11 @@ fn main() {
     println!("{:?}", gw2_dat_2.mft_header);
     println!("MFT Data count : {}", gw2_dat_2.mft_data.len());
     println!("MFT Data : {:?}", gw2_dat_2.mft_data.get(index).unwrap());
-    println!("MFT Data Index count : {}", gw2_dat_2.mft_index.len());
+    println!("MFT Data Index count : {}", gw2_dat_2.mft_index_data.len());
 
     //let mft_data = gw2_dat.get_mft_data(file_path, index).unwrap();
     //println!("Content : {:0X?}", mft_data);
 
-    println!("MFT ID : {:?}", gw2_dat_2.file_id_map.get(16));
-    println!("MFT index count : {}", gw2_dat_2.file_id_map.len());
+    println!("MFT ID : {:?}", gw2_dat_2.mft_index_data.get(16));
+    println!("MFT index count : {}", gw2_dat_2.mft_index_data.len());
 }

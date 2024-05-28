@@ -1,7 +1,6 @@
-use core::num;
 use std::{
     fs::File,
-    io::{self, BufReader, Read, Seek, SeekFrom},
+    io::{self, BufReader, Read, Seek},
     mem::{size_of, swap},
     path::Path,
 };
@@ -226,16 +225,10 @@ pub struct AnetMftEntry {
     pub crc: u32,
 }
 
-#[derive(Default, Debug, Serialize, Deserialize, Clone, Copy)]
-pub struct AnetFileIdEntry {
-    pub file_id: u32,
-    pub mft_entry_index: u32,
-}
-
-#[derive(Default, Debug, Serialize, Deserialize, Clone, Copy)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 pub struct AnetIdEntry {
-    pub base_id: u32,
     pub file_id: u32,
+    pub base_id: u32,
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
@@ -314,8 +307,7 @@ pub struct AnetArchive {
     pub dat_header: AnetDatHeader,
     pub mft_header: AnetMftHeader,
     pub mft_data: Vec<AnetMftEntry>,
-    pub mft_index: Vec<AnetFileIdEntry>,
-    pub file_id_map: Vec<AnetIdEntry>,
+    pub mft_index_data: Vec<AnetIdEntry>,
 }
 const DAT_MAGIC_NUMBER: usize = 3;
 const MFT_MAGIC_NUMBER: usize = 4;
@@ -381,7 +373,7 @@ impl AnetArchive {
     }
 
     fn read_mft_data<R: Read + Seek>(&mut self, file: &mut R) -> io::Result<&mut Self> {
-        for i in 0..self.mft_header.num_entries {
+        for _ in 0..self.mft_header.num_entries {
             let mut mft_data = AnetMftEntry::default();
             mft_data.offset = file.read_u64::<LittleEndian>()?;
             mft_data.size = file.read_u32::<LittleEndian>()?;
@@ -391,52 +383,32 @@ impl AnetArchive {
             mft_data.crc = file.read_u32::<LittleEndian>()?;
             self.mft_data.push(mft_data);
         }
-        println!("Count MFT Data : {}", self.mft_data.len());
         Ok(self)
     }
     fn read_mft_index<R: Read + Seek>(&mut self, file: &mut R) -> io::Result<&mut Self> {
         let num_file_id_entries = self.mft_data.get(MFT_ENTRY_INDEX_NUM).unwrap().size as usize
-            / size_of::<AnetFileIdEntry>() as usize;
-        let mut file_id_table: Vec<AnetFileIdEntry> = Vec::default();
-        println!("Length file id table : {}", file_id_table.len());
+            / size_of::<AnetIdEntry>() as usize;
         file.seek(std::io::SeekFrom::Start(
             self.mft_data.get(MFT_ENTRY_INDEX_NUM).unwrap().offset as u64,
         ))?;
-        println!(
-            "MFT data : {:?}",
-            self.mft_data.get(MFT_ENTRY_INDEX_NUM).unwrap()
-        );
-        println!(
-            "MFT Data length : {}",
-            self.mft_data.get(MFT_ENTRY_INDEX_NUM).unwrap().size
-        );
-        for i in 0..num_file_id_entries {
-            let mut file_id = AnetFileIdEntry::default();
-            file_id.file_id = file.read_u32::<LittleEndian>()?;
-            file_id.mft_entry_index = file.read_u32::<LittleEndian>()?;
-            file_id_table.push(file_id);
+        let mut file_id_table: Vec<AnetIdEntry> = Vec::default();
+        for _ in 0..num_file_id_entries {
+            file_id_table.push(AnetIdEntry {
+                file_id: file.read_u32::<LittleEndian>()?,
+                base_id: file.read_u32::<LittleEndian>()?,
+            });
         }
-        let mut entry_to_id: Vec<AnetIdEntry> = Vec::default();
-        for i in 0..self.mft_data.len() {
-            entry_to_id.push(AnetIdEntry {
+
+        for _ in 0..self.mft_data.len() {
+            self.mft_index_data.push(AnetIdEntry {
+                file_id: 0,
                 base_id: 0,
-                file_id: 0,
             });
         }
-        for i in 0..self.mft_data.len() {
-            self.mft_index.push(AnetFileIdEntry {
-                file_id: 0,
-                mft_entry_index: 0,
-            });
-        }
-        println!("Length file id table 2  : {}", file_id_table.len());
-        println!("Length entry to id : {}", entry_to_id.len());
-        println!("num file id entries : {}", num_file_id_entries);
-        println!("MFT Index count : {}", self.mft_index.len());
+
         for i in 0..num_file_id_entries {
-            let entry_index = file_id_table.get(i).unwrap().mft_entry_index as usize;
-            // println!("Entry index : {}", entry_index);
-            let mut entry = &mut entry_to_id[entry_index];
+            let entry_index = file_id_table.get(i).unwrap().base_id as usize;
+            let entry = &mut self.mft_index_data[entry_index];
             if entry.base_id == 0 {
                 entry.base_id = file_id_table.get(i).unwrap().file_id;
             } else if entry.file_id == 0 {
@@ -449,8 +421,7 @@ impl AnetArchive {
                 }
             }
         }
-        self.file_id_map = entry_to_id;
-        println!("Length file id map : {}", self.file_id_map.len());
+
         Ok(self)
     }
 
