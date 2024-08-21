@@ -5,5 +5,5 @@ edition = "2021"
 
 [dependencies]
 byteorder = "1.5.0"
-flate2 = { version = "1.0.30", default-features = false, features = ["zlib"] }
-serde = { version = "1.0.203", features = ["derive"] }
+flate2 = { version = "1.0.32", default-features = false, features = ["zlib"] }
+serde = { version = "1.0.208", features = ["derive"] }
